@@ -16,6 +16,19 @@ void transpose(double * input, double * output, int N){
   }
 }
 
+unsigned int bitReversed(unsigned int input, unsigned int Nbits){
+
+  unsigned int rev = 0;
+  for(int i = 0; i < Nbits; i++){
+    rev <<= 1;
+    if(input & 1 == 1)
+      rev ^= 1;
+    input >>= 1;
+  }
+  return rev;
+}
+
+
 void fft(double * reInput, double * imInput, double * reOutput, double * imOutput, int N, int step){
 
   double * reBuffer = (double *)malloc(2 * N * sizeof(double));

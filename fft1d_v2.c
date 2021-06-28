@@ -7,17 +7,15 @@
 
 int N = 32;
 
-unsigned int bitReversed(unsigned int input, int Nbits){
+unsigned int bitReversed(unsigned int input, unsigned int Nbits){
 
   unsigned int rev = 0;
-
   for(int i = 0; i < Nbits; i++){
     rev <<= 1;
     if(input & 1 == 1)
       rev ^= 1;
     input >>= 1;
   }
-
   return rev;
 }
 

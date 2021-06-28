@@ -28,7 +28,6 @@ unsigned int bitReversed(unsigned int input, unsigned int Nbits){
   return rev;
 }
 
-
 void fft(double * reInput, double * imInput, double * reOutput, double * imOutput, int N, int step){
 
   double * reBuffer = (double *)malloc(2 * N * sizeof(double));

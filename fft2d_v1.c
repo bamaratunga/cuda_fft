@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <math.h>
 
 #define PI 3.14159265
@@ -17,50 +16,36 @@ void transpose(double * input, double * output, int N){
   }
 }
 
-int bitReversed(unsigned int input, int Nbits){
-    unsigned int rev = 0;
-    for(int i = 0; i < Nbits; i++){
-        rev <<= 1;
-        if(input & 1 == 1)
-            rev ^= 1;
-        input >>= 1;
-    }
-}
-
 void fft(double * reInput, double * imInput, double * reOutput, double * imOutput, int N, int step){
+	if (N == 1) {
+    reOutput[0] = reInput[0];
+    imOutput[0] = imInput[0];
+    return;
+  }
 
-    double * reBuffer = (double *)malloc(2 * N * sizeof(double));
-    double * imBuffer = (double *)malloc(2 * N * sizeof(double));
-    memcpy(reBuffer, reInput, N * sizeof(double));
-    memcpy(imBuffer, imInput, N * sizeof(double));
+  int half = N / 2;
+  fft(reInput, imInput, reOutput, imOutput, half, 2 * step);
+  fft(reInput + step, imInput + step, reOutput + half, imOutput + half, half, 2 * step);
 
-    unsigned int N_stages = log(N) / log(2);
-    for(int stage = 1; stage < N_stages + 1; stage++){
+  for (int k = 0; k < half; ++k) {
+    double theta = - 2.0 * PI * (double)(k) / (double)(N);
+    double rePart = cos(theta);
+    double imPart = sin(theta);
 
-        unsigned int N_parts = pow(2, stage);
-        unsigned int N_elems = N / N_parts;
-        for(int part = 0; part < N_parts; part++){
+    double reUpdate = reOutput[k + half] * rePart - imOutput[k + half] * imPart;
+    double imUpdate = rePart * imOutput[k + half] + reOutput[k + half] * imPart;
 
-            for(int elem = 0; elem < N_elems; elem++){
-                reBuffer[(stage % 2) * N + part * N_elems + elem] =   ( cos(2.0 * PI * elem * pow(2, (stage - 1)) / N ) * ((part + 2) % 2) + ((part + 1) % 2) )
-                                                                                          * ( reBuffer[((stage + 1) % 2) * N + part * N_elems + elem]
-                                              + pow(-1, (part + 2) % 2) * reBuffer[((stage + 1) % 2) * N + ( part + (int)pow(-1, (part + 2) % 2) ) * N_elems + elem] );
-                imBuffer[(stage % 2) * N + part * N_elems + elem] =   (-sin(2.0 * PI * elem * pow(2, (stage - 1)) / N ) * ((part + 2) % 2) + ((part + 1) % 2) )
-                                                                                          * ( reBuffer[((stage + 1) % 2) * N + part * N_elems + elem]
-                                              + pow(-1, (part + 2) % 2) * reBuffer[((stage + 1) % 2) * N + ( part + (int)pow(-1, (part + 2) % 2) ) * N_elems + elem] );
-            }
-        }
-    }
+    double reOrig = reOutput[k];
+    double imOrig = imOutput[k];
 
-    // Bit reversed copy
-    for(unsigned int i = 0; i < N; i++){
-        reOutput[i] = reBuffer[(N_stages % 2) * N + bitReversed(i, N_stages)];
-        imOutput[i] = imBuffer[(N_stages % 2) * N + bitReversed(i, N_stages)];
-    }
+    reOutput[k] = reOrig + reUpdate;
+    imOutput[k] = imOrig + imUpdate;
 
-    free(reBuffer);
-    free(imBuffer);
+    reOutput[k + half] = reOrig - reUpdate;
+    imOutput[k + half] = imOrig - imUpdate;
+  }
 }
+
 
 void fft2(double * reInput, double * imInput, double * reOutput, double * imOutput, int N)
 {
@@ -114,7 +99,7 @@ int main()
     // printf("\n");
   }
 
-  fft2(reInput, imInput, reOutput, imOutput, N);
+	fft2(reInput, imInput, reOutput, imOutput, N);
 
   for(int j = 0; j < N; j++){
     for(int i = 0; i < N; i++){
@@ -123,9 +108,9 @@ int main()
     printf("\n");
   }
 
-  free(reInput);
+	free(reInput);
   free(imInput);
-  free(reOutput);
+	free(reOutput);
   free(imOutput);
 
 	return 0;

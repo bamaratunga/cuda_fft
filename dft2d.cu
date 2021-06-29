@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
     dim3 gridSize(N / 32, N / 32);
     dim3 blockSize( 32, 32); // Multiples of 32
 
-    fft<<<gridSize, blockSize>>>(d_inputData, d_amplitudeOut, N);
+    gpuErrChk(fft<<<gridSize, blockSize>>>(d_inputData, d_amplitudeOut, N);
 
     gpuErrChk(cudaDeviceSynchronize());
 

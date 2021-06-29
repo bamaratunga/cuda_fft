@@ -3,9 +3,7 @@
 #include<string.h>
 #include<math.h>
 
-#define PI 3.14159265
-
-int N = 1024;
+const int N = 32;
 
 void writeCSV(double * input, int idx);
 
@@ -72,10 +70,10 @@ void fft(double * reInput, double * imInput, double * reOutput, double * imOutpu
                    + imBuffer[((stage + 1) % 2) * N + ( part + (int)pow(-1, (part + 2) % 2) ) * N_elems + elem] );
 
         // Calculate multiplication of sum with Wn (Omega / e(j*pi*k / N))
-        reMulValue = cos(2.0 * PI * elem * pow(2, (stage - 1)) / N ) * reSumValue
-                   + sin(2.0 * PI * elem * pow(2, (stage - 1)) / N ) * imSumValue;
-        imMulValue = cos(2.0 * PI * elem * pow(2, (stage - 1)) / N ) * imSumValue
-                   - sin(2.0 * PI * elem * pow(2, (stage - 1)) / N ) * reSumValue;
+        reMulValue = cos(2.0 * M_PI * elem * pow(2, (stage - 1)) / N ) * reSumValue
+                   + sin(2.0 * M_PI * elem * pow(2, (stage - 1)) / N ) * imSumValue;
+        imMulValue = cos(2.0 * M_PI * elem * pow(2, (stage - 1)) / N ) * imSumValue
+                   - sin(2.0 * M_PI * elem * pow(2, (stage - 1)) / N ) * reSumValue;
 
         // Do the selection - if to consider the multiplication factor or not
         reBuffer[(stage % 2) * N + part * N_elems + elem] =

@@ -2,10 +2,8 @@
 #include<stdlib.h>
 #include<math.h>
 
-#define PI 3.14159265
-
 // Size of grid
-int n = 32;
+const int n = 32;
 
 void writeCSV(double input[n][n], int idx){
 
@@ -64,8 +62,8 @@ int main(int argc, char **argv) {
             for (ySpace = 0; ySpace < height; ySpace++) {
                 for (xSpace = 0; xSpace < width; xSpace++) {
                     // Compute real, imag, and ampltude.
-                    realOut[yWave][xWave] += (inputData[ySpace][xSpace] * cos(2 * PI * ((1.0 * xWave * xSpace / width) + (1.0 * yWave * ySpace / height))));
-                    imagOut[yWave][xWave] -= (inputData[ySpace][xSpace] * sin(2 * PI * ((1.0 * xWave * xSpace / width) + (1.0 * yWave * ySpace / height))));
+                    realOut[yWave][xWave] += (inputData[ySpace][xSpace] * cos(2 * M_PI * ((1.0 * xWave * xSpace / width) + (1.0 * yWave * ySpace / height))));
+                    imagOut[yWave][xWave] -= (inputData[ySpace][xSpace] * sin(2 * M_PI * ((1.0 * xWave * xSpace / width) + (1.0 * yWave * ySpace / height))));
                 }
             }
             amplitudeOut[yWave][xWave] = (realOut[yWave][xWave] * realOut[yWave][xWave] + imagOut[yWave][xWave] * imagOut[yWave][xWave]);

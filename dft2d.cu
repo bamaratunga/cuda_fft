@@ -3,10 +3,8 @@
 #include<math.h>
 #include<cuda.h>
 
-#define PI 3.14159265
-
 // Size of grid
-int N = 32;
+const int N = 32;
 
 #define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
@@ -49,8 +47,8 @@ __global__ void fft(double * inputData, double * amplitudeOut, int N){
     for (int ySpace = 0; ySpace < height; ySpace++) {
         for (int xSpace = 0; xSpace < width; xSpace++) {
             // Compute real, imag, and ampltude.
-            realOut += (inputData[ySpace * width + xSpace] * cos(2.0 * PI * ((1.0 * xWave * xSpace / width) + (1.0 * yWave * ySpace / height))));
-            imagOut -= (inputData[ySpace * width + xSpace] * sin(2.0 * PI * ((1.0 * xWave * xSpace / width) + (1.0 * yWave * ySpace / height))));
+            realOut += (inputData[ySpace * width + xSpace] * cos(2.0 * M_PI * ((1.0 * xWave * xSpace / width) + (1.0 * yWave * ySpace / height))));
+            imagOut -= (inputData[ySpace * width + xSpace] * sin(2.0 * M_PI * ((1.0 * xWave * xSpace / width) + (1.0 * yWave * ySpace / height))));
         }
     }
     // amplitudeOut[yWave * n + xWave] = sqrt(realOut * realOut + imagOut * imagOut);
@@ -62,9 +60,10 @@ int main(int argc, char **argv) {
 
     int i, j;
 
-    double * inputData = new double[N * N]();
-    double * amplitudeOut = new double[N * N]();
+    double * inputData = (double *)malloc(N * N * sizeof(double));
+    double * amplitudeOut = (double *)malloc(N * N * sizeof(double));
 
+    // TODO: Create this data on the device itself
     for (j = 0; j < N; j++){
         for (i = 0; i < N; i++){
             inputData[j*N + i] = 0.0;
@@ -87,13 +86,19 @@ int main(int argc, char **argv) {
     dim3 gridSize(N / 32, N / 32);
     dim3 blockSize( 32, 32); // Multiples of 32
 
-    gpuErrChk(fft<<<gridSize, blockSize>>>(d_inputData, d_amplitudeOut, N);
+    fft<<<gridSize, blockSize>>>(d_inputData, d_amplitudeOut, N);
 
     gpuErrChk(cudaDeviceSynchronize());
 
     gpuErrChk(cudaMemcpy(amplitudeOut, d_amplitudeOut, N * N * sizeof(double), cudaMemcpyDeviceToHost));
 
     writeCSV(amplitudeOut, 0);
+
+    gpuErrChk(cudaFree(d_inputData));
+    gpuErrChk(cudaFree(d_amplitudeOut));
+
+    free(inputData);
+    free(amplitudeOut);
 
     return 0;
 }

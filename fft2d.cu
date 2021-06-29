@@ -44,16 +44,36 @@ __device__ unsigned int bitReversed(unsigned int input, int Nbits){
   return rev;
 }
 
-// Transpose Input matrix
-__global__ void transpose(double * input, double * output, int N){
-  for (int j = 0; j < N; j++){
-    for (int i = 0; i < N; i++){
-      output[j * N + i] = input[i * N + j];
-      output[j * N + i] = input[i * N + j];
-    }
-  }
+// Kernel to re-arrange output with bit reversed order
+__global__ void bitReversedCopy(double * reBuffer, double * imBuffer, int N, int N_stages){
+    // Max idx is N
+    unsigned int kernel_idx = blockIdx.x*blockDim.x + threadIdx.x;
+
+    reBuffer[((N_stages + 1) % 2) * N + kernel_idx] = reBuffer[(N_stages % 2) * N + bitReversed(kernel_idx, N_stages)];
+    imBuffer[((N_stages + 1) % 2) * N + kernel_idx] = imBuffer[(N_stages % 2) * N + bitReversed(kernel_idx, N_stages)];
 }
 
+// Transpose Input matrix
+__global__ void transpose(double * input, double * output, int N){
+    // Max idx is N
+    unsigned int kernel_idx = blockIdx.x*blockDim.x + threadIdx.x;
+    for (int j = 0; j < N; j++){
+        output[j * N + kernel_idx] = input[kernel_idx * N + j];
+    }
+}
+
+// Get the absolute value for output
+__global__ void calcAbsolute(double * reInput, double * imInput, int N){
+    // Max idx is N
+    unsigned int kernel_idx = blockIdx.x*blockDim.x + threadIdx.x;
+    for (int j = 0; j < N; j++){
+        reInput[j * N + kernel_idx] *= reInput[kernel_idx * N + j];
+        imInput[j * N + kernel_idx] *= imInput[kernel_idx * N + j];
+        reInput[j * N + kernel_idx] += imInput[kernel_idx * N + j];
+    }
+}
+
+// Kernel to calculate one instance of a single stage
 __global__ void fft_stage(double * reBuffer, double * imBuffer, int N, int stage){
 
     // Max idx is N
@@ -76,10 +96,10 @@ __global__ void fft_stage(double * reBuffer, double * imBuffer, int N, int stage
 
     // Calculate respective sums
     reSumValue = ( pow(-1, (part + 2) % 2) * reBuffer[((stage + 1) % 2) * N + part * N_elems + elem]
-               + reBuffer[((stage + 1) % 2) * N + ( part + (int)pow(-1, (part + 2) % 2) ) * N_elems + elem] );
+               + reBuffer[((stage + 1) % 2) * N + ( part + __double2uint_rn(pow(-1, (part + 2) % 2)) ) * N_elems + elem] );
 
     imSumValue = ( pow(-1, (part + 2) % 2) * imBuffer[((stage + 1) % 2) * N + part * N_elems + elem]
-               + imBuffer[((stage + 1) % 2) * N + ( part + (int)pow(-1, (part + 2) % 2) ) * N_elems + elem] );
+               + imBuffer[((stage + 1) % 2) * N + ( part + __double2uint_rn(pow(-1, (part + 2) % 2)) ) * N_elems + elem] );
 
     // Calculate multiplication of sum with Wn
     reMulValue = cos(2.0 * PI * elem * pow(2, (stage - 1)) / N ) * reSumValue
@@ -97,36 +117,20 @@ __global__ void fft_stage(double * reBuffer, double * imBuffer, int N, int stage
                                   + ((part + 1) % 2) * imSumValue;
 }
 
-
-// Calculate FFT of a single vector
-                    /* Input buffers -> size = 2*N        |   Output buffers -> size = N     */
-__global__ void fft(double * reBuffer, double * imBuffer, double * reOutput, double * imOutput, int N){
-
-    // Number of stages in the FFT
-    unsigned int N_stages = log(N) / log(2);
-
-    dim3 gridSize(N / 32, N / 32);
-    dim3 blockSize( 32, 32); // Multiples of 32
-
-    for(int stage = 1; stage < N_stages + 1; stage++){
-        gpuErrChk(fft_stage<<<gridSize, blockSize>>>(d_reBuffer, d_imBuffer, N, stage));
-    }
-
-    // Bit reversed indexed copy to rearrange in the correct order
-    for(unsigned int i = 0; i < N; i++){
-      reOutput[i] = reBuffer[(N_stages % 2) * N + bitReversed(i, N_stages)];
-      imOutput[i] = imBuffer[(N_stages % 2) * N + bitReversed(i, N_stages)];
-    }
-}
-
-
+// Perform fft in 2D
 __host__ void fft2(double * inputData, double * outputData, int N)
 {
     double * d_reInputBuf = NULL;
     double * d_imInputBuf = NULL;
+    double * d_reInputBuf_T = NULL;
+    double * d_imInputBuf_T = NULL;
+    double * d_reTemp = NULL;
+    double * d_imTemp = NULL;
 
     gpuErrChk(cudaMalloc(&d_reInputBuf, N * N * sizeof(double)));
     gpuErrChk(cudaMalloc(&d_imInputBuf, N * N * sizeof(double)));
+    gpuErrChk(cudaMalloc(&d_reInputBuf_T, N * N * sizeof(double)));
+    gpuErrChk(cudaMalloc(&d_imInputBuf_T, N * N * sizeof(double)));
 
     gpuErrChk(cudaMemcpy(d_reInputBuf, inputData, N * N * sizeof(double), cudaMemcpyHostToDevice));
     gpuErrChk(cudaMemset(d_imInputBuf, 0, N * N * sizeof(double)));
@@ -140,62 +144,55 @@ __host__ void fft2(double * inputData, double * outputData, int N)
     double * d_reBuffer = NULL;
     double * d_imBuffer = NULL;
 
+    // 2 * N size buffers to do double buffering between stages
     gpuErrChk(cudaMalloc(&d_reBuffer, 2 * N * sizeof(double)));
     gpuErrChk(cudaMalloc(&d_imBuffer, 2 * N * sizeof(double)));
 
-    // Peform FFT to each row
-    for(int j = 0; j < N; j++){
+    for(int iteration = 0; iteration < 2; iteration++){
+        // Peform FFT to each row
+        for(int j = 0; j < N; j++){
 
-        // TODO: Separate kernel to do copying faster?
-        // TODO:                         // Check for correctness
-        gpuErrChk(cudaMemcpy(d_reBuffer, d_reInputBuf + N * j, N * sizeof(double), cudaMemcpyDeviceToDevice));
-        gpuErrChk(cudaMemcpy(d_imBuffer, d_imInputBuf + N * j, N * sizeof(double), cudaMemcpyDeviceToDevice));
+            // TODO: Separate kernel to do copying faster?
+            // TODO:                         // Check for correctness
+            gpuErrChk(cudaMemcpy(d_reBuffer, d_reInputBuf + N * j, N * sizeof(double), cudaMemcpyDeviceToDevice));
+            gpuErrChk(cudaMemcpy(d_imBuffer, d_imInputBuf + N * j, N * sizeof(double), cudaMemcpyDeviceToDevice));
 
-        for(int stage = 1; stage < N_stages + 1; stage++){
-            gpuErrChk(fft_stage<<<gridSize, blockSize>>>(d_reBuffer, d_imBuffer, N, stage));
+            for(int stage = 1; stage < N_stages + 1; stage++){
+                fft_stage<<<gridSize, blockSize>>>(d_reBuffer, d_imBuffer, N, stage);
+                gpuErrChk(cudaDeviceSynchronize());
+            }
+
+            gpuErrChk(cudaDeviceSynchronize());
+
+            bitReversedCopy<<<gridSize, blockSize>>>(d_reBuffer, d_imBuffer, N, N_stages);
+
+            gpuErrChk(cudaDeviceSynchronize());
+
+            gpuErrChk(cudaMemcpy(d_reInputBuf + N * j, d_reBuffer + N * ((N_stages + 1) % 2), N * sizeof(double), cudaMemcpyDeviceToDevice));
+            gpuErrChk(cudaMemcpy(d_imInputBuf + N * j, d_imBuffer + N * ((N_stages + 1) % 2), N * sizeof(double), cudaMemcpyDeviceToDevice));
         }
 
-        gpuErrChk(cudaDeviceSynchronize());
+        // Transpose matrix
+        transpose<<<gridSize, blockSize>>>(d_reInputBuf, d_reInputBuf_T, N);
+        transpose<<<gridSize, blockSize>>>(d_imInputBuf, d_imInputBuf_T, N);
 
-        gpuErrChk(cudaMemcpy(d_reInputBuf + N * j, d_reBuffer + N * (stage % 2), N * sizeof(double), cudaMemcpyDeviceToDevice));
-        gpuErrChk(cudaMemcpy(d_imInputBuf + N * j, d_imBuffer + N * (stage % 2), N * sizeof(double), cudaMemcpyDeviceToDevice));
+        // Swap pointers
+        d_reTemp = d_reInputBuf;
+        d_imTemp = d_imInputBuf;
+        d_reInputBuf = d_reInputBuf_T;
+        d_imInputBuf = d_imInputBuf_T;
+        d_reInputBuf_T = d_reTemp;
+        d_imInputBuf_T = d_imTemp;
     }
 
+    calcAbsolute<<<gridSize, blockSize>>>(d_reInputBuf, d_imInputBuf, N);
 
+    gpuErrChk(cudaMemcpy(outputData, d_reInputBuf, N * N * sizeof(double), cudaMemcpyDeviceToHost));
 
-  double * reBuffer = (double *)malloc(2 * N * sizeof(double));
-  double * imBuffer = (double *)malloc(2 * N * sizeof(double));
-
-  double * reTemp = (double *)malloc(N * N * sizeof(double));
-  double * imTemp = (double *)malloc(N * N * sizeof(double));
-
-  reBuffer[i] = reInput[i];
-  imBuffer[i] = imInput[i];
-  reBuffer[N + i] = 0;
-  imBuffer[N + i] = 0;
-
-  // memcpy(reBuffer, reInput, N * sizeof(double));
-  // memcpy(imBuffer, imInput, N * sizeof(double));
-
-
-
-  fft(reInput, imInput, reTemp, imTemp, reBuffer, imBuffer, N);
-
-  double * reTemp2 = (double *)malloc(N * N * sizeof(double));
-  double * imTemp2 = (double *)malloc(N * N * sizeof(double));
-
-  transpose(reTemp, reTemp2, N);
-  transpose(imTemp, imTemp2, N);
-
-
-  fft(reTemp2, imTemp2, reTemp, imTemp, reBuffer, imBuffer, N);
-
-
-  transpose(reTemp, reOutput, N);
-  transpose(imTemp, imOutput, N);
-
-  free(reTemp);
-  free(imTemp);
+    gpuErrChk(cudaFree(d_reInputBuf));
+    gpuErrChk(cudaFree(d_imInputBuf));
+    gpuErrChk(cudaFree(d_reBuffer));
+    gpuErrChk(cudaFree(d_imBuffer));
 }
 
 

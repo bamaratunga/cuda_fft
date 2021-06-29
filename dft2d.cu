@@ -5,6 +5,9 @@
 
 #define PI 3.14159265
 
+// Size of grid
+int N = 32;
+
 #define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
@@ -15,8 +18,23 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
    }
 }
 
-// Size of grid
-int N = 32;
+
+__host__ void writeCSV(double * input, int idx){
+
+  char fname[0x100];
+  snprintf(fname, sizeof(fname), "output_%d.csv", idx);
+  FILE *fp = fopen(fname, "w");
+
+  for(int col = 0; col < N; col++){
+    for(int row = 0; row < N-1; row++){
+      fprintf(fp, "%lf, ", input[row + N * col]);
+    }
+    fprintf(fp, "%lf", input[N-1 + N * col]);
+    fprintf(fp, "\n");
+  }
+  fclose(fp);
+}
+
 
 __global__ void fft(double * inputData, double * amplitudeOut, int N){
     double realOut = 0;
@@ -31,14 +49,13 @@ __global__ void fft(double * inputData, double * amplitudeOut, int N){
     for (int ySpace = 0; ySpace < height; ySpace++) {
         for (int xSpace = 0; xSpace < width; xSpace++) {
             // Compute real, imag, and ampltude.
-            realOut += (inputData[ySpace * width + xSpace] * cos(2.0 * PI * ((1.0 * xWave * xSpace / width) + (1.0 * yWave * ySpace / height)))) / sqrt(1.0 * width * height);
-            imagOut -= (inputData[ySpace * width + xSpace] * sin(2.0 * PI * ((1.0 * xWave * xSpace / width) + (1.0 * yWave * ySpace / height)))) / sqrt(1.0 * width * height);
+            realOut += (inputData[ySpace * width + xSpace] * cos(2.0 * PI * ((1.0 * xWave * xSpace / width) + (1.0 * yWave * ySpace / height))));
+            imagOut -= (inputData[ySpace * width + xSpace] * sin(2.0 * PI * ((1.0 * xWave * xSpace / width) + (1.0 * yWave * ySpace / height))));
         }
     }
     // amplitudeOut[yWave * n + xWave] = sqrt(realOut * realOut + imagOut * imagOut);
-    amplitudeOut[yWave * N + xWave] = sqrt(realOut * realOut + imagOut * imagOut);
+    amplitudeOut[yWave * N + xWave] = (realOut * realOut + imagOut * imagOut);
 }
-
 
 
 int main(int argc, char **argv) {
@@ -55,6 +72,7 @@ int main(int argc, char **argv) {
             if ((abs(i-N/2) <= 10) && (abs(i-N/2) >= 8) && (abs(j-N/2) <= 4)){
               inputData[j*N + i] = 1.0;
             }
+            amplitudeOut[j*N + i] = 0.0;
         }
     }
 
@@ -75,12 +93,7 @@ int main(int argc, char **argv) {
 
     gpuErrChk(cudaMemcpy(amplitudeOut, d_amplitudeOut, N * N * sizeof(double), cudaMemcpyDeviceToHost));
 
-    for (j = 0; j < N; j++){
-        for (i = 0; i < N; i++){
-            printf("%lf ", N * N * amplitudeOut[j * N + i] * amplitudeOut[j * N + i]);
-        }
-        printf("\n");
-    }
+    writeCSV(amplitudeOut, 0);
 
     return 0;
 }

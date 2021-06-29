@@ -1,7 +1,7 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<math.h>
 
 #define PI 3.14159265
 
@@ -30,6 +30,7 @@ unsigned int bitReversed(unsigned int input, unsigned int Nbits){
   return rev;
 }
 
+// Calculate FFT of a single vector
 void fft(double * reInput, double * imInput, double * reOutput, double * imOutput, int N, int step){
 
   // Create buffers of twice the size to store data interchangeably

@@ -79,13 +79,13 @@ __global__ void fft_stage(double * reBuffer, double * imBuffer, int N, int stage
     unsigned int kernel_idx = blockIdx.x*blockDim.x + threadIdx.x;
 
     // Number of patitions
-    unsigned int N_parts = pow(2, stage);
+    unsigned int N_parts = __double2uint_rn(pow(2, stage));
     // Number of elements in a partition
-    unsigned int N_elems = N / N_parts;
+    unsigned int N_elems = __double2uint_rn(N / N_parts);
     // Current partition Number
-    unsigned int part = kernel_idx / N_parts;
+    unsigned int part =  __double2uint_rn(kernel_idx / N_elems);
     // Element number in the current partition
-    unsigned int elem = kernel_idx - part * N_elems;
+    int elem = kernel_idx - part * N_elems;
 
     // Temporary variables
     double reSumValue;

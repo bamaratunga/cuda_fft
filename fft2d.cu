@@ -94,17 +94,17 @@ __global__ void fft_stage(double * reBuffer, double * imBuffer, int N, int stage
     double imMulValue;
 
     // Calculate respective sums
-    reSumValue = ( pow(-1, (part + 2) % 2) * reBuffer[((stage + 1) % 2) * N + part * N_elems + elem]
+    reSumValue = ( __double2uint_rn(pow(-1, (part + 2) % 2)) * reBuffer[((stage + 1) % 2) * N + part * N_elems + elem]
                + reBuffer[((stage + 1) % 2) * N + ( part + __double2uint_rn(pow(-1, (part + 2) % 2)) ) * N_elems + elem] );
 
-    imSumValue = ( pow(-1, (part + 2) % 2) * imBuffer[((stage + 1) % 2) * N + part * N_elems + elem]
+    imSumValue = ( __double2uint_rn(pow(-1, (part + 2) % 2)) * imBuffer[((stage + 1) % 2) * N + part * N_elems + elem]
                + imBuffer[((stage + 1) % 2) * N + ( part + __double2uint_rn(pow(-1, (part + 2) % 2)) ) * N_elems + elem] );
 
     // Calculate multiplication of sum with Wn
-    reMulValue = cos(2.0 * M_PI * elem * pow(2, (stage - 1)) / N ) * reSumValue
-               + sin(2.0 * M_PI * elem * pow(2, (stage - 1)) / N ) * imSumValue;
-    imMulValue = cos(2.0 * M_PI * elem * pow(2, (stage - 1)) / N ) * imSumValue
-               - sin(2.0 * M_PI * elem * pow(2, (stage - 1)) / N ) * reSumValue;
+    reMulValue = cos(2.0 * M_PI * elem * __double2uint_rn(pow(2, (stage - 1))) / N ) * reSumValue
+               + sin(2.0 * M_PI * elem * __double2uint_rn(pow(2, (stage - 1))) / N ) * imSumValue;
+    imMulValue = cos(2.0 * M_PI * elem * __double2uint_rn(pow(2, (stage - 1))) / N ) * imSumValue
+               - sin(2.0 * M_PI * elem * __double2uint_rn(pow(2, (stage - 1))) / N ) * reSumValue;
 
     // Do the selection - if to consider the multiplication factor or not
     reBuffer[(stage % 2) * N + part * N_elems + elem] =

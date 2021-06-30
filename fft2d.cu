@@ -3,7 +3,7 @@
 #include<math.h>
 #include<cuda.h>
 
-const int N = 32;
+const int N = 2048;
 
 #define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
@@ -66,9 +66,7 @@ __global__ void calcAbsolute(double * reInput, double * imInput, int N){
     // Max idx is N
     unsigned int kernel_idx = blockIdx.x*blockDim.x + threadIdx.x;
     for (int j = 0; j < N; j++){
-        reInput[j * N + kernel_idx] *= reInput[kernel_idx * N + j];
-        imInput[j * N + kernel_idx] *= imInput[kernel_idx * N + j];
-        reInput[j * N + kernel_idx] += imInput[kernel_idx * N + j];
+        reInput[kernel_idx * N + j]  = reInput[kernel_idx * N + j] * reInput[kernel_idx * N + j] + imInput[kernel_idx * N + j] * imInput[kernel_idx * N + j];
     }
 }
 
@@ -94,11 +92,11 @@ __global__ void fft_stage(double * reBuffer, double * imBuffer, int N, int stage
     double imMulValue;
 
     // Calculate respective sums
-    reSumValue = ( __double2uint_rn(pow(-1, (part + 2) % 2)) * reBuffer[((stage + 1) % 2) * N + part * N_elems + elem]
-               + reBuffer[((stage + 1) % 2) * N + ( part + __double2uint_rn(pow(-1, (part + 2) % 2)) ) * N_elems + elem] );
+    reSumValue = ( __double2int_rn(pow(-1, (part + 2) % 2)) * reBuffer[((stage + 1) % 2) * N + part * N_elems + elem]
+               + reBuffer[((stage + 1) % 2) * N + ( part + __double2int_rn(pow(-1, (part + 2) % 2)) ) * N_elems + elem] );
 
-    imSumValue = ( __double2uint_rn(pow(-1, (part + 2) % 2)) * imBuffer[((stage + 1) % 2) * N + part * N_elems + elem]
-               + imBuffer[((stage + 1) % 2) * N + ( part + __double2uint_rn(pow(-1, (part + 2) % 2)) ) * N_elems + elem] );
+    imSumValue = ( __double2int_rn(pow(-1, (part + 2) % 2)) * imBuffer[((stage + 1) % 2) * N + part * N_elems + elem]
+               + imBuffer[((stage + 1) % 2) * N + ( part + __double2int_rn(pow(-1, (part + 2) % 2)) ) * N_elems + elem] );
 
     // Calculate multiplication of sum with Wn
     reMulValue = cos(2.0 * M_PI * elem * __double2uint_rn(pow(2, (stage - 1))) / N ) * reSumValue
@@ -137,8 +135,11 @@ __host__ void fft2(double * inputData, double * outputData, int N)
     // Number of stages in the FFT
     unsigned int N_stages = log(N) / log(2);
     // Resource allocation
-    dim3 gridSize(N / 32, N / 32);
-    dim3 blockSize( 32, 32); // Multiples of 32
+    // TODO: Generalize this part
+    unsigned int gSize = max(1, N/32);
+    unsigned int bSize = min(N, 32);
+    dim3 gridSize(gSize, 1);
+    dim3 blockSize( bSize, 1); // Multiples of 32
 
     double * d_reBuffer = NULL;
     double * d_imBuffer = NULL;

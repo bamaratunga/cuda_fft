@@ -1,10 +1,12 @@
 #include<stdio.h>
 #include<stdlib.h>
+#include<time.h>
+
 #include<math.h>
 #include<cuda.h>
 
 // Size of grid
-const int N = 32;
+// const int N = 32;
 
 #define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
@@ -17,7 +19,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 }
 
 
-__host__ void writeCSV(double * input, int idx){
+__host__ void writeCSV(double * input, int idx, unsigned int N){
 
   char fname[0x100];
   snprintf(fname, sizeof(fname), "output_%d.csv", idx);
@@ -58,6 +60,13 @@ __global__ void fft(double * inputData, double * amplitudeOut, int N){
 
 int main(int argc, char **argv) {
 
+    if(argc < 2) {
+        printf("Enter the dimension size as argument!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    int N = atoi(argv[1]);
+
     int i, j;
 
     double * inputData = (double *)malloc(N * N * sizeof(double));
@@ -74,6 +83,13 @@ int main(int argc, char **argv) {
             amplitudeOut[j*N + i] = 0.0;
         }
     }
+
+    clock_t start, end;
+    double cpu_time_used;
+
+    printf("Running fft for %d x %d = %d = 2 ^ %d data points...\n", N, N, N*N, (int)(log(N*N)/log(2)));
+
+    start = clock();
 
     double * d_inputData = NULL;
     double * d_amplitudeOut = NULL;
@@ -92,7 +108,14 @@ int main(int argc, char **argv) {
 
     gpuErrChk(cudaMemcpy(amplitudeOut, d_amplitudeOut, N * N * sizeof(double), cudaMemcpyDeviceToHost));
 
-    writeCSV(amplitudeOut, 0);
+    end = clock();
+
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+
+    printf("Runtime = %lfs\n", cpu_time_used);
+
+    printf("Writing output data...\n");
+    writeCSV(amplitudeOut, 0, N);
 
     gpuErrChk(cudaFree(d_inputData));
     gpuErrChk(cudaFree(d_amplitudeOut));

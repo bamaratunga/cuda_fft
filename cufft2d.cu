@@ -1,12 +1,11 @@
 #include<stdio.h>
 #include<stdlib.h>
+#include<time.h>
 
 #include<cuda.h>
 #include<cufft.h>
 #include<cufftXt.h>
 #include<cuComplex.h>
-
-const int N = 4096;
 
 #define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
@@ -19,7 +18,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 }
 
 // Write ouput to CSV file
-__host__ void writeCSV(double * input, int idx){
+__host__ void writeCSV(double * input, int idx, unsigned int N){
     char fname[0x100];
     snprintf(fname, sizeof(fname), "output_%d.csv", idx);
     FILE *fp = fopen(fname, "w");
@@ -67,8 +66,15 @@ void  fft2(cuDoubleComplex * inData, const unsigned int N) {
 }
 
 
-int main()
-{
+int main(int argc, char** argv){
+
+  if(argc < 2) {
+      printf("Enter the dimension size as argument!\n");
+      exit(EXIT_FAILURE);
+  }
+
+  int N = atoi(argv[1]);
+
   // Complex data input
   cuDoubleComplex * inputData = (cuDoubleComplex *)malloc(N * N * sizeof(cuDoubleComplex));
   // Real data
@@ -90,14 +96,26 @@ int main()
     } // printf("\n");
   }
 
+  printf("Running fft for %d x %d = %d = 2 ^ %d data points...\n", N, N, N*N, (int)(log(N*N)/log(2)));
+
+  clock_t start, end;
+  double cpu_time_used;
+
+  start = clock();
   fft2(inputData, N);
+  end = clock();
+
+  cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+
+  printf("Runtime = %lfs\n", cpu_time_used);
 
   for(int i = 0; i < N*N; i++){
       outputData[i] = cuCreal(inputData[i]) * cuCreal(inputData[i])
                     + cuCimag(inputData[i]) * cuCimag(inputData[i]);
   }
 
-  writeCSV(outputData, 0);
+  printf("Writing output data...\n");
+  writeCSV(outputData, 0, N);
 
   free(inputData);
   free(outputData);

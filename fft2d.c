@@ -2,10 +2,11 @@
 #include<stdlib.h>
 #include<string.h>
 #include<math.h>
+#include<time.h>
 
 const int N = 32;
 
-void writeCSV(double * input, int idx);
+void writeCSV(double * input, int idx, unsigned int N);
 
 // Transpose Input matrix
 void transpose(double * input, double * output, int N){
@@ -139,8 +140,15 @@ void fft2(double * input, double * output, int N)
 }
 
 
-int main()
-{
+int main(int argc, char** argv){
+
+  if(argc < 2) {
+    printf("Enter the dimension size as argument!\n");
+    exit(EXIT_FAILURE);
+  }
+
+  int N = atoi(argv[1]);
+
   double * inputData = (double *)malloc(N * N * sizeof(double));
   double * amplitudeOut = (double *)malloc(N * N * sizeof(double));
 
@@ -157,9 +165,21 @@ int main()
     // printf("\n");
   }
 
-	fft2(inputData, amplitudeOut, N);
+  printf("Running fft for %d x %d = %d = 2 ^ %d data points...\n", N, N, N*N, (int)(log(N*N)/log(2)));
 
-  writeCSV(amplitudeOut, 0);
+  clock_t start, end;
+  double cpu_time_used;
+
+  start = clock();
+	fft2(inputData, amplitudeOut, N);
+  end = clock();
+
+  cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+
+  printf("Runtime = %lfs\n", cpu_time_used);
+
+  printf("Writing output data...\n");
+  writeCSV(amplitudeOut, 0, N);
 
 	free(inputData);
   free(amplitudeOut);
@@ -168,7 +188,7 @@ int main()
 }
 
 // Write data to CSV file
-void writeCSV(double * input, int idx){
+void writeCSV(double * input, int idx, unsigned int N){
 
   char fname[0x100];
   snprintf(fname, sizeof(fname), "output_%d.csv", idx);

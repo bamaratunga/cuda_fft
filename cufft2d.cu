@@ -80,9 +80,9 @@ int main(int argc, char** argv){
   // Real data
   double * outputData = (double *)malloc(N * N * sizeof(double));
 
-  int slit_height = 4;
+  int slit_height = 1;
   int slit_width  = 2;
-  int slit_dist   = 8;
+  int slit_dist   = 7;
 
   // TODO: Create this data on the device itself
   // Create double slit

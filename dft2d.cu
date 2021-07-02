@@ -1,40 +1,22 @@
-#include<stdio.h>
-#include<stdlib.h>
-#include<time.h>
+/***********************************************************
+*
+* Developed for Seminar in Parallelisation of Physics
+* Calculations on GPUs with CUDA, Department of Physics
+* Technical University of Munich.
+*
+* Author: Binu Amaratunga
+*
+*
+***********************************************************/
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
-#include<math.h>
-#include<cuda.h>
+#include <math.h>
+#include <cuda.h>
 
-// Size of grid
-// const int N = 32;
-
-#define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
-{
-   if (code != cudaSuccess)
-   {
-      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-      if (abort) exit(code);
-   }
-}
-
-
-__host__ void writeCSV(double * input, int idx, unsigned int N){
-
-  char fname[0x100];
-  snprintf(fname, sizeof(fname), "output_%d.csv", idx);
-  FILE *fp = fopen(fname, "w");
-
-  for(int col = 0; col < N; col++){
-    for(int row = 0; row < N-1; row++){
-      fprintf(fp, "%lf, ", input[row + N * col]);
-    }
-    fprintf(fp, "%lf", input[N-1 + N * col]);
-    fprintf(fp, "\n");
-  }
-  fclose(fp);
-}
-
+#include "controls.h"
+#include "utils.h"
 
 __global__ void fft(double * inputData, double * amplitudeOut, int N){
     double realOut = 0;

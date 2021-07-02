@@ -1,44 +1,32 @@
-#include<stdio.h>
-#include<stdlib.h>
-#include<time.h>
+/***********************************************************
+*
+* Developed for Seminar in Parallelisation of Physics
+* Calculations on GPUs with CUDA, Department of Physics
+* Technical University of Munich.
+*
+* Author: Binu Amaratunga
+*
+*
+***********************************************************/
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
-#include<cuda.h>
-#include<cufft.h>
-#include<cufftXt.h>
-#include<cuComplex.h>
+#include <cuda.h>
+#include <cufft.h>
+#include <cufftXt.h>
+#include <cuComplex.h>
 
-#define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
-{
-  if (code != cudaSuccess)
-  {
-    fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-    if (abort) exit(code);
-  }
-}
+#include "controls.h"
+#include "utils.h"
 
-// Write ouput to CSV file
-__host__ void writeCSV(double * input, int idx, unsigned int N){
-    char fname[0x100];
-    snprintf(fname, sizeof(fname), "output_%d.csv", idx);
-    FILE *fp = fopen(fname, "w");
-
-    for(int col = 0; col < N; col++){
-        for(int row = 0; row < N-1; row++){
-            fprintf(fp, "%lf, ", input[row + N * col]);
-        }
-        fprintf(fp, "%lf", input[N-1 + N * col]);
-        fprintf(fp, "\n");
-    }
-    fclose(fp);
-}
-
-// forward FFT (inplace)
-// real data are put in contiguous data array, input[1:Nx, 1:Ny]
-// but size of input is bigger, say  Nx * 2*(Ny>>1 +1) doublereal
-
-// output:
-// input is a complex array with size Nx*(Ny>>1 + 1)
+/*************************************
+* Compute 2D FFT with cuFFT
+* output
+*
+*
+*
+**************************************/
 
 void  fft2(cuDoubleComplex * inData, const unsigned int N) {
 
@@ -103,16 +91,16 @@ int main(int argc, char** argv){
 
   start = clock();
   fft2(inputData, N);
+  // TODO: Do this in cuBLAS
+  for(int i = 0; i < N*N; i++){
+      outputData[i] = cuCreal(inputData[i]) * cuCreal(inputData[i])
+                    + cuCimag(inputData[i]) * cuCimag(inputData[i]);
+  }
   end = clock();
 
   cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
 
   printf("Runtime = %lfs\n", cpu_time_used);
-
-  for(int i = 0; i < N*N; i++){
-      outputData[i] = cuCreal(inputData[i]) * cuCreal(inputData[i])
-                    + cuCimag(inputData[i]) * cuCimag(inputData[i]);
-  }
 
   printf("Writing output data...\n");
   writeCSV(outputData, 0, N);

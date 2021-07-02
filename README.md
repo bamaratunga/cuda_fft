@@ -38,3 +38,5 @@ make c
 ./fft2dc <size of one dimension>
 
 ```
+## License
+[MIT](https://choosealicense.com/licenses/mit/)
